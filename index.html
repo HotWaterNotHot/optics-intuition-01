@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>透明的尽头是白色 · 光学直觉 #01</title>
+<style>
+  :root{
+    --bg:#0b0e14; --panel:#121722; --panel2:#0f141d; --line:#232b3b;
+    --text:#e8edf5; --muted:#9aa7ba; --accent:#7cc4ff; --warm:#ffd08a;
+    --good:#8fe3b0;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:"PingFang SC","Microsoft YaHei","Noto Sans SC",system-ui,sans-serif;
+    line-height:1.7; font-size:17px;
+  }
+  .wrap{max-width:960px; margin:0 auto; padding:0 20px 80px;}
+  .kicker{color:var(--accent); font-size:14px; letter-spacing:.2em; font-weight:600;}
+  h1{font-size:clamp(30px,6vw,46px); line-height:1.25; margin:.2em 0 .3em;}
+  h2{font-size:clamp(22px,4vw,30px); margin:0 0 8px;}
+  .sub{color:var(--muted); font-size:clamp(16px,2.5vw,19px);}
+  header{padding:72px 0 24px;}
+  section{margin-top:72px;}
+  .lead{color:var(--muted); max-width:720px;}
+  em{color:var(--text); font-style:normal; border-bottom:2px solid var(--accent);}
+
+  /* hook 三句话 */
+  .hooks{display:grid; gap:14px; margin-top:24px;}
+  .hook-card{
+    background:var(--panel); border:1px solid var(--line); border-radius:14px;
+    padding:18px 22px; font-size:clamp(17px,2.6vw,20px);
+  }
+  .hook-card b{color:var(--accent);}
+
+  /* 实验室 */
+  .lab{
+    background:var(--panel); border:1px solid var(--line); border-radius:16px;
+    padding:22px; margin-top:18px;
+  }
+  .slider-row{margin:14px 0 4px;}
+  .slider-row label{display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px;}
+  .slider-row .val{color:var(--accent); font-weight:700; font-variant-numeric:tabular-nums;}
+  input[type=range]{width:100%; accent-color:var(--accent); height:36px; cursor:pointer;}
+  .advanced{margin-top:6px; color:var(--muted); font-size:15px;}
+  .advanced details summary{cursor:pointer; color:var(--muted);}
+  .advanced details[open] summary{margin-bottom:8px;}
+
+  .viz{display:grid; grid-template-columns:1fr; gap:16px; margin-top:18px;}
+  @media(min-width:760px){ .viz{grid-template-columns:1.15fr 1fr;} }
+  canvas{width:100%; display:block; border-radius:12px; background:var(--panel2); border:1px solid var(--line);}
+  .canvas-note{color:var(--muted); font-size:13px; margin-top:6px;}
+
+  .readouts{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-top:16px;}
+  .ro{background:var(--panel2); border:1px solid var(--line); border-radius:12px; padding:12px 14px;}
+  .ro .k{color:var(--muted); font-size:13px;}
+  .ro .v{font-size:clamp(17px,2.4vw,21px); font-weight:700; font-variant-numeric:tabular-nums; margin-top:2px;}
+  .ro .v.acc{color:var(--accent);} .ro .v.warm{color:var(--warm);} .ro .v.good{color:var(--good);}
+  .formula{
+    margin-top:14px; padding:12px 14px; border-left:3px solid var(--accent);
+    background:var(--panel2); border-radius:0 10px 10px 0;
+    font-family:Consolas,Menlo,monospace; font-size:14.5px; color:var(--muted);
+    overflow-x:auto; white-space:nowrap;
+  }
+  .formula b{color:var(--text);}
+
+  /* 标尺锚点 */
+  .anchors{display:flex; flex-wrap:wrap; gap:10px; margin-top:16px;}
+  .chip{
+    background:var(--panel2); border:1px solid var(--line); border-radius:999px;
+    padding:8px 16px; cursor:pointer; color:var(--text); font-size:15px;
+    transition:border-color .15s, transform .15s;
+  }
+  .chip:hover{border-color:var(--accent); transform:translateY(-1px);}
+  .chip small{color:var(--muted); margin-left:6px;}
+
+  /* 三连击 & 四态卡 */
+  .cards{display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px; margin-top:18px;}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:20px;}
+  .card h3{font-size:19px; margin-bottom:6px;}
+  .card .num{color:var(--accent); font-weight:700;}
+  .card p{color:var(--muted); font-size:15.5px; margin-top:6px;}
+  .state-swatch{height:52px; border-radius:10px; margin-bottom:12px; border:1px solid var(--line);}
+  .sw-clear{background:linear-gradient(180deg,rgba(124,196,255,.12),rgba(124,196,255,.04));}
+  .sw-white{background:#f4f6f8;}
+  .sw-blue{background:linear-gradient(180deg,#2a5f8f,#12365c);}
+  .sw-black{background:#05070a;}
+
+  footer{margin-top:80px; padding-top:24px; border-top:1px solid var(--line); color:var(--muted); font-size:14px;}
+  footer p{margin-bottom:10px;}
+  .next-ep{color:var(--text);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <p class="kicker">光学直觉 · 第 1 期</p>
+  <h1>透明的尽头是白色</h1>
+  <p class="sub">水和空气都是透明的。把光路上的界面数量乘以一亿倍，你得到的不是更透明——是雪白。</p>
+</header>
+
+<section id="hook">
+  <h2>三句话直觉</h2>
+  <div class="hooks">
+    <div class="hook-card"><b>透明</b> = 光沿直线穿过去，<em>方向不变</em>。</div>
+    <div class="hook-card"><b>白</b> = 光被反弹了无数次，<em>方向完全随机</em>——但能量一点没少，全部还给你。</div>
+    <div class="hook-card">水<b>几乎不吸收</b>可见光。所以泡沫不会变成黑色，只会把光"洗乱"后还回来：<em>白色</em>。</div>
+  </div>
+</section>
+
+<section id="lab">
+  <h2>亲手把"透明"拖成"白色"</h2>
+  <p class="lead">下面这个水柱里，光每遇到一个气泡壁就被随机弹开一次。拖动滑块，增加你与光之间的界面数量，看看发生什么。</p>
+
+  <div class="lab">
+    <div class="slider-row">
+      <label><span>光路上遇到的界面数量 N</span><span class="val" id="nVal"></span></label>
+      <input type="range" id="nSlider" min="0" max="600" step="5" value="150" aria-label="界面数量（对数刻度）">
+    </div>
+
+    <div class="advanced">
+      <details>
+        <summary>高级：单界面平均反射率 p（默认 6%，为什么不是 2%？）</summary>
+        <p style="margin:8px 0;">垂直入射时水-空气界面的反射率是 2.0%（Fresnel 公式，见页尾）。但泡沫里光线会以各种角度撞上弯曲的泡壁，斜入射和全反射把平均值抬高——这里默认取 6% 作为量级代表，可调范围 2%–25%。</p>
+        <div class="slider-row">
+          <label><span>单界面平均反射率 p</span><span class="val" id="pVal"></span></label>
+          <input type="range" id="pSlider" min="2" max="25" step="1" value="6" aria-label="单界面平均反射率">
+        </div>
+      </details>
+    </div>
+
+    <div class="viz">
+      <div>
+        <canvas id="rayCanvas" width="900" height="420"></canvas>
+        <p class="canvas-note">物理模拟：蓝线=未被散射、直线穿过的光；暖色=被弹回你眼睛的漫射光（这就是你看到的"白"）；灰线=从侧面/斜向出射的漫射光。背景浑浊度=随机化光比例（模型直接输出，非美术修饰）。</p>
+      </div>
+      <div>
+        <canvas id="curveCanvas" width="640" height="420"></canvas>
+        <p class="canvas-note">直线透过率 T 随 N 的变化（双对数坐标）。指数衰减在双对数图上是一条直线——反射率雪崩就是这么直白。</p>
+      </div>
+    </div>
+
+    <div class="readouts">
+      <div class="ro"><div class="k">界面数量 N</div><div class="v" id="roN">—</div></div>
+      <div class="ro"><div class="k">直线透过率 T</div><div class="v acc" id="roT">—</div></div>
+      <div class="ro"><div class="k">被随机化的光（→白）</div><div class="v warm" id="roW">—</div></div>
+      <div class="ro"><div class="k">你的观感</div><div class="v good" id="roFeel">—</div></div>
+    </div>
+
+    <div class="formula" id="formula">—</div>
+
+    <p style="margin-top:18px; color:var(--muted); font-size:15px;">或者直接跳到真实世界的位置（数量级估算）：</p>
+    <div class="anchors">
+      <button class="chip" data-logn="0.3">单层窗玻璃<small>N≈2</small></button>
+      <button class="chip" data-logn="1.5">一杯气泡水<small>N≈30</small></button>
+      <button class="chip" data-logn="2">磨砂玻璃<small>N≈100</small></button>
+      <button class="chip" data-logn="3">啤酒沫（1 cm）<small>N≈10³</small></button>
+      <button class="chip" data-logn="4">雪层（10 cm）<small>N≈10⁴</small></button>
+      <button class="chip" data-logn="5.5">云层（1 km）<small>N≈10⁵·⁵</small></button>
+    </div>
+  </div>
+</section>
+
+<section id="triple">
+  <h2>同一个机制，三种日常</h2>
+  <div class="cards">
+    <div class="card">
+      <h3>❄️ 雪为什么是白的</h3>
+      <p>冰和气泡水一样透明，但一片 10 cm 的雪里有<span class="num">上万个</span>冰-空气界面。光进得去出不来，被弹了几千次才出来——方向随机、能量还在：<span class="num">白</span>。掏一小把按实了，它就重新变透明（冰）。</p>
+    </div>
+    <div class="card">
+      <h3>☁️ 云为什么是白的</h3>
+      <p>云滴直径约 20 µm，一滴水被分成几百万个微滴，界面数量指数级暴涨。傍晚云变红不是机制变了——是阳光路上蓝光已被大气<span class="num">先行散射</span>，剩下红光照亮云。</p>
+    </div>
+    <div class="card">
+      <h3>🍺 啤酒沫为什么是白的而啤酒是琥珀色</h3>
+      <p>同一杯液体，只差"有没有被打成泡"。酒体吸收了蓝绿光剩下琥珀色；泡沫把这些光<span class="num">先弹乱再送回</span>，吸收被"稀释"，观感趋白。吸收决定色调，散射决定白不白。</p>
+    </div>
+  </div>
+</section>
+
+<section id="states">
+  <h2>白 · 蓝 · 黑 · 透明：一句话分清</h2>
+  <p class="lead">把"散射"和"吸收"两根旋钮分开，所有日常观感各就各位。</p>
+  <div class="cards">
+    <div class="card"><div class="state-swatch sw-clear"></div><h3>透明</h3><p>不散射、不吸收。光方向不变地穿过。<br><span class="num">空气、纯水、玻璃</span></p></div>
+    <div class="card"><div class="state-swatch sw-white"></div><h3>白</h3><p>强散射 + 不吸收。光被随机化后全额返还。<br><span class="num">雪、云、泡沫、纸</span></p></div>
+    <div class="card"><div class="state-swatch sw-blue"></div><h3>蓝</h3><p>散射弱、吸收挑波长。纯水对红光的吸收比对蓝光强约<span class="num">百倍</span>（吸收系数 α₇₀₀/α₄₅₀ ≈ 140），几十米后只剩蓝光。<br><span class="num">深海、冰川冰芯</span></p></div>
+    <div class="card"><div class="state-swatch sw-black"></div><h3>黑</h3><p>强散射 + 强吸收。光被弹来弹去但能量被吃光。<br><span class="num">碳黑、墨</span></p></div>
+  </div>
+</section>
+
+<footer>
+  <p><b>简化模型声明</b>（本页所有数字的计算方法）：</p>
+  <p>① 垂直入射 Fresnel 反射率 R = ((n₂−n₁)/(n₂+n₁))²，代入 n₁=1.00（空气）、n₂=1.33（水）：R = (0.33/2.33)² ≈ <b>2.0%</b>。</p>
+  <p>② 直线透过率 T = (1−p)^N，p 为单界面平均反射率（默认 6%，可调 2–25%），N 为界面数。被随机化的光 = 1 − T（无吸收假设，能量守恒）。</p>
+  <p>③ 光线图为蒙特卡洛演示：每条光线的散射次数按泊松过程采样（λ = −ln T），散射点沿路径指数间隔，转向角在 ±150° 内均匀分布。它是机制的直观演示，不是辐射传输的精确解。</p>
+  <p>④ 真实世界锚点（窗玻璃/气泡水/雪/云的 N）为数量级估算：泡沫每厘米路径约 50–100 个界面、雪每厘米约 100–1000 个冰晶界面、云层路径因随机游走被大幅拉长。它们的作用是给你"在滑块上的位置感"。</p>
+  <p>⑤ 忽略了：偏振、波长的散射依赖（瑞利散射的蓝天是另一期）、水对可见光的微量吸收（见"蓝"卡片）。</p>
+  <p class="next-ep">下一期预告：月亮在地平线上真的变大了吗？——视觉失效专题。</p>
+</footer>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var SUP = {"0":"⁰","1":"¹","2":"²","3":"³","4":"⁴","5":"⁵","6":"⁶","7":"⁷","8":"⁸","9":"⁹","-":"⁻",".":"."};
+  function sup(s){ return String(s).split("").map(function(c){return SUP[c]||c;}).join(""); }
+  function sci(x){
+    if(x===0) return "0";
+    var e = Math.floor(Math.log10(Math.abs(x)));
+    var m = x/Math.pow(10,e);
+    return (m>=9.95?"1.0":m.toFixed(1))+"×10"+sup(e);
+  }
+  function fmtN(n){
+    if(n < 1e4) return String(Math.round(n));
+    return sci(n);
+  }
+  function fmtPct(t){
+    var pc = t*100;
+    if(pc >= 1)   return pc.toFixed(1)+"%";
+    if(pc >= 0.01) return pc.toFixed(3)+"%";
+    return sci(pc)+"%";
+  }
+
+  var nSlider = document.getElementById("nSlider");
+  var pSlider = document.getElementById("pSlider");
+  var elN = document.getElementById("roN"), elT = document.getElementById("roT"),
+      elW = document.getElementById("roW"), elF = document.getElementById("roFeel"),
+      elFormula = document.getElementById("formula"),
+      nVal = document.getElementById("nVal"), pVal = document.getElementById("pVal");
+
+  var rayCv = document.getElementById("rayCanvas");
+  var curveCv = document.getElementById("curveCanvas");
+  var rctx = rayCv.getContext("2d");
+  var cctx = curveCv.getContext("2d");
+
+  function getLogN(){ return parseInt(nSlider.value,10)/100; }
+  function getP(){ return parseInt(pSlider.value,10)/100; }
+
+  function state(){
+    var logN = getLogN(), p = getP();
+    var N = Math.pow(10, logN);
+    var T = Math.pow(1-p, N);
+    var rand = 1-T;
+    return {logN:logN, p:p, N:N, T:T, rand:rand};
+  }
+
+  function feelWord(rand){
+    if(rand < 0.02)  return "完全透明";
+    if(rand < 0.2)   return "清澈，微微发雾";
+    if(rand < 0.6)   return "半透明，雾感明显";
+    if(rand < 0.95)  return "乳白，看不清后面";
+    return "不透明的白";
+  }
+
+  /* ---------- 光线模拟 ---------- */
+  var RAY_COUNT = 220, TURN_MAX = 150*Math.PI/180;
+  var rays = [], rayMeta = null, animStart = 0;
+
+  function gauss(){
+    var u=0,v=0;
+    while(u===0) u=Math.random();
+    while(v===0) v=Math.random();
+    return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);
+  }
+  function poisson(lambda){
+    if(lambda < 0.5){ var k=0, prob=Math.exp(-lambda), s=prob, u=Math.random();
+      while(u > s && k < 60){ k++; prob *= lambda/k; s += prob; }
+      return k;
+    }
+    if(lambda > 60) return 120;
+    return Math.max(0, Math.round(lambda + Math.sqrt(lambda)*gauss()));
+  }
+
+  function buildRays(){
+    var st = state();
+    var W = rayCv.width, H = rayCv.height;
+    var pad = 14;
+    var tau = -Math.log(Math.max(st.T, 1e-300));
+    rays = [];
+    for(var i=0;i<RAY_COUNT;i++){
+      var k = poisson(tau);
+      var y = pad + Math.random()*(H-2*pad);
+      var pts = [{x:0, y:y}];
+      var ang = 0, x = 0;
+      if(k > 0){
+        // 散射点：沿路径指数间隔（泊松过程的间隔分布），等价于 k 个排序后的位置
+        var xs = [];
+        for(var j=0;j<k;j++) xs.push(Math.random());
+        xs.sort(function(a,b){return a-b;});
+        for(var j2=0;j2<k;j2++){
+          x = W*(0.98)*xs[j2];
+          if(x <= pts[pts.length-1].x + 1) x = pts[pts.length-1].x + 1;
+          ang += (Math.random()*2-1)*TURN_MAX;
+          var dy = Math.tan(ang)*(x - pts[pts.length-1].x);
+          var ny = pts[pts.length-1].y + dy;
+          // 边界折返，保持路径在介质内
+          while(ny < pad || ny > H-pad){
+            if(ny < pad) ny = 2*pad - ny;
+            if(ny > H-pad) ny = 2*(H-pad) - ny;
+          }
+          pts.push({x:x, y:ny});
+        }
+      }
+      // 出射段
+      var ex = W, ey = pts[pts.length-1].y + Math.tan(ang)*(W - pts[pts.length-1].x);
+      pts.push({x:ex, y:ey});
+      var cls;
+      if(k === 0) cls = "direct";
+      else if(Math.abs(ang) > Math.PI/2) cls = "back";
+      else if(Math.abs(ang) > 40*Math.PI/180) cls = "side";
+      else cls = "fwd";
+      rays.push({pts:pts, cls:cls});
+    }
+    rayMeta = st;
+  }
+
+  var CSS = getComputedStyle(document.documentElement);
+  function cv(c){ return CSS.getPropertyValue(c).trim() || "#fff"; }
+
+  function drawRays(frac){
+    var W = rayCv.width, H = rayCv.height;
+    rctx.clearRect(0,0,W,H);
+    // 介质背景：随机化光比例 → 浑浊度（模型输出）
+    var milk = Math.pow(rayMeta.rand, 0.8)*0.92;
+    rctx.fillStyle = "rgba(244,246,248,"+(milk*0.55).toFixed(3)+")";
+    rctx.fillRect(0,0,W,H);
+    rctx.strokeStyle = "rgba(154,167,186,.35)";
+    rctx.strokeRect(0.5,0.5,W-1,H-1);
+    // 入射面标记
+    rctx.strokeStyle = "rgba(124,196,255,.5)";
+    rctx.beginPath(); rctx.moveTo(1,0); rctx.lineTo(1,H); rctx.stroke();
+
+    var show = Math.max(1, Math.floor(frac*rays.length));
+    for(var i=0;i<show;i++){
+      var r = rays[i];
+      rctx.beginPath();
+      rctx.moveTo(r.pts[0].x, r.pts[0].y);
+      for(var j=1;j<r.pts.length;j++) rctx.lineTo(r.pts[j].x, r.pts[j].y);
+      if(r.cls==="direct")      rctx.strokeStyle = "rgba(124,196,255,.85)";
+      else if(r.cls==="back")   rctx.strokeStyle = "rgba(255,208,138,.75)";
+      else if(r.cls==="fwd")    rctx.strokeStyle = "rgba(200,214,230,.35)";
+      else                      rctx.strokeStyle = "rgba(154,167,186,.3)";
+      rctx.lineWidth = r.cls==="direct"?1.6:1;
+      rctx.stroke();
+    }
+    // 出射方向指示（观察者在右侧）
+    rctx.strokeStyle = "rgba(255,208,138,.9)";
+    rctx.lineWidth = 2;
+    rctx.beginPath(); rctx.moveTo(W-14, H/2-6); rctx.lineTo(W-4, H/2); rctx.lineTo(W-14, H/2+6); rctx.stroke();
+  }
+
+  /* ---------- 曲线图 ---------- */
+  function drawCurve(){
+    var st = state();
+    var W = curveCv.width, H = curveCv.height;
+    var L = 46, R = 14, T0 = 18, B = 40;
+    var pw = W-L-R, ph = H-T0-B;
+    cctx.clearRect(0,0,W,H);
+    // 网格：x 每 1 个 decade，y 每 5 个
+    cctx.strokeStyle = "rgba(35,43,59,.9)";
+    cctx.fillStyle = "#9aa7ba";
+    cctx.font = "12px sans-serif";
+    cctx.lineWidth = 1;
+    var yDecade = T0+ph+16;
+    for(var gx=0; gx<=9; gx++){
+      var px = L + pw*gx/9;
+      cctx.beginPath(); cctx.moveTo(px,T0); cctx.lineTo(px,T0+ph); cctx.stroke();
+      cctx.fillText("10"+sup(gx), px-8, yDecade);
+    }
+    for(var gy=0; gy>=-30; gy-=5){
+      var py = T0 + ph*(-gy)/30;
+      cctx.beginPath(); cctx.moveTo(L,py); cctx.lineTo(L+pw,py); cctx.stroke();
+      cctx.fillText("10"+sup(gy), 8, py+4);
+    }
+    cctx.fillText("N", W-R-8, yDecade);
+    cctx.fillText("T", 8, T0-4);
+    // 直线：log10 T = logN * log10(1-p)
+    var slope = Math.log10(1-st.p);
+    cctx.strokeStyle = "#7cc4ff"; cctx.lineWidth = 2.4;
+    cctx.beginPath();
+    cctx.moveTo(L, T0);
+    var yEnd = slope*9;
+    if(yEnd < -30) yEnd = -30;
+    cctx.lineTo(L + pw*(yEnd/slope), T0 + ph*(-yEnd)/30);
+    cctx.stroke();
+    // 当前点
+    var cx = L + pw*st.logN/9;
+    var cyv = slope*st.logN; if(cyv<-30) cyv=-30;
+    var cy = T0 + ph*(-cyv)/30;
+    cctx.fillStyle = "#ffd08a";
+    cctx.beginPath(); cctx.arc(cx,cy,6,0,7); cctx.fill();
+    // 锚点刻度（文字放最底一行，与量级刻度错开）
+    cctx.fillStyle = "#9aa7ba"; cctx.font = "11px sans-serif";
+    var anchors=[[0.3,"玻璃"],[1.5,"气泡水"],[2,"磨砂"],[3,"沫"],[4,"雪"],[5.5,"云"]];
+    anchors.forEach(function(a){
+      var ax = L + pw*a[0]/9;
+      cctx.fillRect(ax, T0+ph, 1.5, 6);
+      cctx.fillText(a[1], ax-8, H-6);
+    });
+  }
+
+  /* ---------- 读数 ---------- */
+  function updateReadouts(){
+    var st = state();
+    nVal.textContent = "10"+sup(st.logN.toFixed(1));
+    pVal.textContent = (st.p*100).toFixed(0)+"%";
+    elN.textContent = fmtN(st.N);
+    elT.textContent = fmtPct(st.T);
+    elW.textContent = fmtPct(st.rand);
+    elF.textContent = feelWord(st.rand);
+    var pc = st.T*100;
+    var tStr = pc >= 0.01 ? (pc.toFixed(pc>=1?2:4)) : sci(pc);
+    elFormula.innerHTML = "T = (1 − p)<sup>N</sup> = (1 − "+(st.p).toFixed(2)+")<sup>"+sci(st.N)+"</sup> = <b>"+sci(st.T)+"</b>（"+fmtPct(st.T)+" 的光还走直线）";
+  }
+
+  /* ---------- 动画与事件 ---------- */
+  var rafId = null;
+  function restart(){
+    buildRays();
+    drawCurve();
+    updateReadouts();
+    animStart = performance.now();
+    if(rafId) cancelAnimationFrame(rafId);
+    (function tick(now){
+      var t = Math.min(1, (now-animStart)/1200);
+      var ease = 1-Math.pow(1-t,3);
+      drawRays(ease);
+      if(t<1) rafId = requestAnimationFrame(tick);
+    })(animStart);
+  }
+
+  nSlider.addEventListener("input", restart);
+  pSlider.addEventListener("input", restart);
+  document.querySelectorAll(".chip").forEach(function(ch){
+    ch.addEventListener("click", function(){
+      nSlider.value = Math.round(parseFloat(ch.dataset.logn)*100);
+      restart();
+    });
+  });
+  var resized = false;
+  window.addEventListener("resize", function(){
+    if(resized) return; resized = true;
+    setTimeout(function(){ resized=false; fitCanvases(); restart(); }, 150);
+  });
+
+  function fitCanvases(){
+    [ [rayCv, 420], [curveCv, 420] ].forEach(function(pair){
+      var cvEl = pair[0], cssW = cvEl.parentElement.clientWidth || cvEl.clientWidth;
+      var dpr = Math.min(2, window.devicePixelRatio||1);
+      var cssH = Math.round(Math.min(pair[1], cssW*0.62));
+      cvEl.style.height = cssH+"px";
+      cvEl.width = Math.round(cssW*dpr);
+      cvEl.height = Math.round(cssH*dpr);
+    });
+    // 曲线画布在高分屏下按同样坐标系绘制即可（已按 width 缩放）
+  }
+
+  fitCanvases();
+  restart();
+})();
+</script>
+</body>
+</html>
