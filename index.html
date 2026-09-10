@@ -261,7 +261,7 @@
   <p>③ 光线图为蒙特卡洛演示：每条光线的散射次数按泊松过程采样（λ = −ln T），散射点沿路径指数间隔，转向角在 ±150° 内均匀分布。它是机制的直观演示，不是辐射传输的精确解。</p>
   <p>④ 真实世界锚点（窗玻璃/气泡水/雪/云的 N）为数量级估算：气泡水每厘米路径约 30–300 个界面（气泡越小越多）、雪每厘米约 100–1000 个冰晶界面、云层路径因随机游走被大幅拉长。它们的作用是给你"在滑块上的位置感"。</p>
   <p>⑤ 忽略了：偏振、波长的散射依赖（瑞利散射的蓝天是另一期）、水对可见光的微量吸收（见"蓝"卡片）。</p>
-  <p>⑥ "打乱空间关系"实验的简化口径：气泡层后的画面 = 直线分量（权重 T=(1−0.06)^N）+ 气泡透镜网格重映射（每个气泡≈一个局部小透镜：位移幅度∝气泡大小×散射占比，附 ±25% 局部缩放）+ 漫射白幕（权重 0.9×(1−T)，代表各深度、各方向散射光的混合）。它复现"扭曲→洗乱→白"的趋势，不是辐射传输求解；真实气泡的折射是连续曲面的光滑变形，此处用网格离散近似。透镜对照中，凸透镜以几何缩放表示——重点是"逐点对应"不因弯折而破坏。</p>
+  <p>⑥ "打乱空间关系"实验的口径：<b>逐像素反向光线追迹 + 双线性插值</b>。每个输出像素反向发一条光，穿过气泡层：水中气泡是发散透镜，每次相遇按近轴光楔给出偏向中心的偏转（δ ∝ 偏心距/r），偏转逐气泡累计成位移场；光线落到物体平面后按位移场双线性插值采样——这就是画面扭曲的来源。每个气泡有前后两次界面相遇，每次以 p=6%（Fresnel）概率把光反射出视线，这部分汇入漫射白幕（各深度、各方向散射光的混合），权重 (0.94)^(2×相遇数) 随相遇数指数衰减——这就是变白的来源。真实气泡是三维球面的连续折射，此处用线性光楔的位移场近似（无候选搜索的解析等价追迹），复现"扭曲→洗乱→白"的机制链。透镜对照中，凸透镜以几何缩放表示——重点是"逐点对应"不因弯折而破坏。</p>
   <p class="next-ep">下一期预告：天空为什么是蓝的，晚霞为什么是红的？——同一个"散射"直觉，加上"波长"这根新旋钮。</p>
 </footer>
 
@@ -529,7 +529,15 @@
     ctx.clearRect(0,0,W,H);
     ctx.fillStyle = "#dfe7f0";
     ctx.fillRect(0,0,W,H);
+    // 背景网格：折射的"试纸"——气泡透镜把直线弯成弧线，任何位置都可见
     var u = Math.min(W,H);
+    var step = u*0.1;
+    ctx.strokeStyle = "rgba(90,130,170,.30)";
+    ctx.lineWidth = Math.max(1, u*0.006);
+    ctx.beginPath();
+    for(var gx=step; gx<W; gx+=step){ ctx.moveTo(gx,0); ctx.lineTo(gx,H); }
+    for(var gy=step; gy<H; gy+=step){ ctx.moveTo(0,gy); ctx.lineTo(W,gy); }
+    ctx.stroke();
     SCENE.forEach(function(o){
       ctx.fillStyle = o.color;
       ctx.beginPath();
@@ -571,51 +579,133 @@
     }
   }
 
-  var warpCanvas = document.createElement("canvas");
+  /* ---------- 光线追迹成像 ----------
+     模型：水中气泡 = 发散透镜。对输出画面逐像素反向追迹一条光：
+       穿过气泡层时每个气泡给出偏转 δ = LENS·(d/r)（发散：指向离心方向，线性光楔近轴近似），
+       偏转累计为位移场；光线落到物体平面后按位移双线性插值采样。
+       每个气泡两次界面相遇，每次以 p=6% 概率把光反射出视线 → 汇入漫射白幕（能量守恒）。
+     实现：位移场积分（追迹的解析等价，避免逐像素候选搜索），draft 半分辨率 + 松手精绘。 */
+  var rtCanvas = document.createElement("canvas");
+  var srcData = null;
+  var dispX = null, dispY = null, hitN = null, fieldW = 0, fieldH = 0;
+  var powT = (function(){ var t = new Float32Array(65); for(var i=0;i<65;i++) t[i] = Math.pow(0.94, i*2); return t; })();
+  var draftMode = false;
 
-  function drawBubbles(){
+  function mulberry32(a){ return function(){ a|=0; a = a+0x6D2B79F5|0; var t = Math.imul(a^a>>>15, 1|a); t = t+Math.imul(t^t>>>7, 61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+  var MAX_BUBBLES = 500, bubblePool = [];
+  (function(){ var rng = mulberry32(20260910); for(var i=0;i<MAX_BUBBLES;i++){ bubblePool.push({x:rng(), y:rng(), r:0.7+0.6*rng()}); } })();
+
+  function traceBubbles(draft){
     var W = bubCv.width, H = bubCv.height;
-    bctx.clearRect(0,0,W,H);
-    var q = parseInt(bnSlider.value,10)/100;          // 0..1
-    var bs = parseInt(bsSlider.value,10);             // 气泡直径（CSS 像素）
-    var dpr = W / (bubCv.clientWidth||W) || 1;
-    var N = Math.pow(10, q*3.3);                      // 与主实验同源：N = 10^(0..3.3)
-    var T = Math.pow(1-0.06, N);
-    var Wd = Math.max(0, 1-T);
-    // 第1层：直线光分量（权重=T，随气泡增多衰减——这是"变白"的主控）
-    if(T > 0.001){
-      bctx.globalAlpha = T;
-      bctx.drawImage(srcCv, 0, 0);
+    var dpr = W/(bubCv.clientWidth||W) || 1;
+    var scale = draft ? 0.5 : 1;
+    var rw = Math.max(2, Math.round(W*scale)), rh = Math.max(2, Math.round(H*scale));
+    if(fieldW !== rw || fieldH !== rh){
+      fieldW = rw; fieldH = rh;
+      dispX = new Float32Array(rw*rh);
+      dispY = new Float32Array(rw*rh);
+      hitN  = new Uint16Array(rw*rh);
     }
-    if(Wd > 0.001){
-      // 第2层：气泡透镜网格重映射——每个气泡=一个小透镜（局部错位+缩放）
-      // 大气泡 → 大网格 → 扭曲块面大且明显；小气泡 → 细碎闪炼（磨砂感）
-      var tileCss = Math.max(bs*1.6, 8);
-      var tw = Math.max(6, Math.round(tileCss*dpr));
-      warpCanvas.width = W; warpCanvas.height = H;
-      var w2 = warpCanvas.getContext("2d");
-      var r1, r2, r3, h1, h2, h3;
-      for(var ty=0, iy=0; ty<H; ty+=tw, iy++){
-        for(var tx=0, ix=0; tx<W; tx+=tw, ix++){
-          h1 = Math.sin(ix*127.1+iy*311.7)*43758.5453; r1 = h1-Math.floor(h1);
-          h2 = Math.sin(ix*269.5+iy*183.3)*28001.8384; r2 = h2-Math.floor(h2);
-          h3 = Math.sin(ix*419.2+iy*371.9)*12345.6789; r3 = h3-Math.floor(h3);
-          var amp = tw*0.45*Wd;                        // 扭曲幅度∝气泡大小×散射占比
-          var dx = (r1*2-1)*amp, dy = (r2*2-1)*amp;
-          var sc = 1 + (r3-0.5)*0.5*Wd;                // ±25%局部缩放（透镜感）
-          var sw = Math.min(tw, W-tx), sh = Math.min(tw, H-ty);
-          if(sw<=0||sh<=0) continue;
-          w2.drawImage(srcCv, tx, ty, sw, sh, tx+dx, ty+dy, sw*sc, sh*sc);
+    dispX.fill(0); dispY.fill(0); hitN.fill(0);
+
+    var q  = parseInt(bnSlider.value,10)/100;
+    var bs = parseInt(bsSlider.value,10);
+    var Rmax = Math.max(2.5, bs*dpr);                       // 基础半径（设备px）
+    var nB = q < 0.01 ? 0 : Math.min(MAX_BUBBLES, Math.round(Math.pow(10, q*2.7)));
+    var LENS = 3.2;                                         // 折射强度：边缘位移 = LENS×半径（超量程采样近邻内容→边缘呈强弧形折断，玻璃珠感）
+    // 光学厚度：真实气泡层有深度方向堆叠。用面积覆盖率反推等效层数 L，
+    // 使白化由"几何覆盖率×层数"共同决定（单层永远盖不满画面，白不了）。
+    var areaCov = 0;
+    for(var ai=0; ai<nB; ai++){
+      var ar = bubblePool[ai].r*Rmax;
+      areaCov += Math.PI*ar*ar;
+    }
+    var cov = Math.min(1, areaCov/(W*H));
+    var L = 1 + Math.round(q*9);                            // 层数 1..10（数量滑块同时推深光路）
+
+    // Pass1：每气泡把偏转累加进位移场（球透镜压缩映射）
+    // 反向追迹：泡内像素采样"更靠泡心"的内容 → 内容被拉向泡心压缩（玻璃珠像）
+    // disp = -LENS·|d|·d̂ → 边缘位移最大(LENS·r)、泡心为零 → 网格线在泡内被弯成弧线并压缩
+    for(var i=0;i<nB;i++){
+      var b = bubblePool[i];
+      var bx = b.x*W, by = b.y*H, br = b.r*Rmax;
+      var x0 = Math.max(0, Math.floor(bx-br)), x1 = Math.min(rw-1, Math.ceil(bx+br));
+      var y0 = Math.max(0, Math.floor(by-br)), y1 = Math.min(rh-1, Math.ceil(by+br));
+      for(var py=y0; py<=y1; py++){
+        var dy0 = py+0.5-by, row = py*rw;
+        for(var px=x0; px<=x1; px++){
+          var dx0 = px+0.5-bx;
+          var d2 = dx0*dx0+dy0*dy0;
+          if(d2 >= br*br) continue;
+          var d = Math.sqrt(d2);
+          var k1 = LENS*d/br;                     // 0(泡心)→LENS(边缘)
+          var idx = row+px;
+          dispX[idx] -= dx0*k1;
+          dispY[idx] -= dy0*k1;
+          hitN[idx]++;
         }
       }
-      bctx.globalAlpha = Wd;
-      bctx.drawImage(warpCanvas, 0, 0);
-      // 第3层：漫射白幕——来自各深度、各方向散射光的叠加（把"各处各色光混合成白"可视化）
-      bctx.globalAlpha = Wd*0.9;
-      bctx.fillStyle = "#ffffff";
-      bctx.fillRect(0,0,W,H);
     }
-    bctx.globalAlpha = 1;
+
+    // 物体图像数据
+    if(!srcData || srcData.width !== srcCv.width || srcData.height !== srcCv.height){
+      srcData = sctx.getImageData(0, 0, srcCv.width, srcCv.height);
+    }
+    var sd = srcData.data, sw = srcData.width, sh = srcData.height;
+
+    // Pass2：逐像素按位移场双线性插值采样 + 白幕混合
+    rtCanvas.width = rw; rtCanvas.height = rh;
+    var rctx2 = rtCanvas.getContext("2d");
+    var out = rctx2.createImageData(rw, rh);
+    var od = out.data;
+    var sxr = sw/W, syr = sh/H;
+    for(var py2=0; py2<rh; py2++){
+      var row2 = py2*rw;
+      for(var px2=0; px2<rw; px2++){
+        var idx = row2+px2;
+        var sxf = (px2+0.5+dispX[idx])*sxr - 0.5;
+        var syf = (py2+0.5+dispY[idx])*syr - 0.5;
+        if(sxf<0) sxf=0; else if(sxf>sw-1.001) sxf=sw-1.001;
+        if(syf<0) syf=0; else if(syf>sh-1.001) syf=sh-1.001;
+        var xa = sxf|0, ya = syf|0;
+        var xb = xa+1; if(xb>=sw) xb=sw-1;
+        var yb = ya+1; if(yb>=sh) yb=sh-1;
+        var fx = sxf-xa, fy = syf-ya;
+        var i00=(ya*sw+xa)*4, i10=(ya*sw+xb)*4, i01=(yb*sw+xa)*4, i11=(yb*sw+xb)*4;
+        var h = hitN[idx];
+        // 等效相遇次数：单层几何相遇数 × 光学厚度层数
+        var m = h*L;
+        var wD, wW;
+        if(h === 0){
+          // 不在任何气泡投影内：这像素的光在本层没遇到气泡。
+          // 但光路有 L 层深，其他层可能覆盖——用全局覆盖率外推逃逸概率。
+          var escape = Math.pow(1-cov, L);
+          wD = escape; wW = 1-escape;
+        }else{
+          wD = m>=64 ? 0 : powT[m];
+          wW = 1-wD;
+        }
+        var o = idx*4;
+        od[o]   = (sd[i00]*(1-fx)*(1-fy) + sd[i10]*fx*(1-fy) + sd[i01]*(1-fx)*fy + sd[i11]*fx*fy)*wD + 255*wW;
+        od[o+1] = (sd[i00+1]*(1-fx)*(1-fy) + sd[i10+1]*fx*(1-fy) + sd[i01+1]*(1-fx)*fy + sd[i11+1]*fx*fy)*wD + 255*wW;
+        od[o+2] = (sd[i00+2]*(1-fx)*(1-fy) + sd[i10+2]*fx*(1-fy) + sd[i01+2]*(1-fx)*fy + sd[i11+2]*fx*fy)*wD + 255*wW;
+        od[o+3] = 255;
+      }
+    }
+    rctx2.putImageData(out, 0, 0);
+    bctx.imageSmoothingEnabled = true;
+    bctx.clearRect(0,0,W,H);
+    bctx.drawImage(rtCanvas, 0, 0, W, H);
+  }
+
+  var tracePending = false;
+  function scheduleTrace(draft){
+    if(tracePending) return; tracePending = true;
+    requestAnimationFrame(function(){
+      tracePending = false;
+      traceBubbles(draft);
+      updateImagingReadouts();
+    });
   }
 
   function refitImaging(){
@@ -629,7 +719,7 @@
     });
     drawScene(sctx, srcCv.width, srcCv.height);
     drawLens();
-    drawBubbles();
+    traceBubbles(false);
     updateImagingReadouts();
   }
 
@@ -643,17 +733,14 @@
     bubCv.setAttribute("aria-label","透过气泡层观察：气泡数量"+bnVal.textContent+"，图像"+(q<0.25?"轻微模糊":(q<0.6?"严重模糊、开始发白":"几乎全白，轮廓不可见")));
   }
 
-  var imgPending = false;
-  function scheduleImaging(){
-    if(imgPending) return; imgPending = true;
-    requestAnimationFrame(function(){
-      imgPending = false;
-      drawBubbles();
-      updateImagingReadouts();
-    });
+  var fullTimer = null;
+  function sliderInput(){
+    scheduleTrace(true);                    // 拖动中：半分辨率草绘，跟手
+    clearTimeout(fullTimer);
+    fullTimer = setTimeout(function(){ scheduleTrace(false); }, 200);  // 松手 200ms 后：全分辨率精绘
   }
-  bnSlider.addEventListener("input", scheduleImaging);
-  bsSlider.addEventListener("input", scheduleImaging);
+  bnSlider.addEventListener("input", sliderInput);
+  bsSlider.addEventListener("input", sliderInput);
   lensChip.addEventListener("click", function(){
     lensOn = true; lensChip.classList.add("active"); plainChip.classList.remove("active");
     drawLens();
