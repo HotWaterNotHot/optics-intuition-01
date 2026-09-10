@@ -203,11 +203,11 @@
 
     <div class="slider-row" style="margin-top:18px;">
       <label><span>气泡数量（光路上的散射强度）</span><span class="val" id="bnVal"></span></label>
-      <input type="range" id="bnSlider" min="0" max="100" step="1" value="0" aria-label="气泡数量">
+      <input type="range" id="bnSlider" min="0" max="100" step="2" value="0" aria-label="气泡数量">
     </div>
     <div class="slider-row" id="bsRow">
       <label><span>气泡大小（大气泡 ≈ 一个个小透镜，扭曲更明显）</span><span class="val" id="bsVal"></span></label>
-      <input type="range" id="bsSlider" min="1" max="30" step="1" value="14" aria-label="气泡大小">
+      <input type="range" id="bsSlider" min="6" max="30" step="1" value="16" aria-label="气泡大小">
     </div>
 
     <div class="mode-row">
@@ -567,9 +567,9 @@
       lctx.translate(cx, cy); lctx.scale(k,k); lctx.translate(-cx,-cy);
       lctx.drawImage(srcCv, 0, 0);
       lctx.restore();
-      // 透镜示意
+      // 透镜示意（边框内网格同步被放大——"线弯但有序"的对照）
       var rw = Math.min(W,H)*0.26;
-      lctx.fillStyle = "rgba(60,80,105,.07)";
+      lctx.fillStyle = "rgba(60,80,105,.06)";
       lctx.strokeStyle = "rgba(60,80,105,.9)";
       lctx.lineWidth = 2.5;
       lctx.fillRect(W/2-rw/2, H/2-rw*0.8, rw, rw*1.6);
@@ -609,10 +609,11 @@
     dispX.fill(0); dispY.fill(0); hitN.fill(0);
 
     var q  = parseInt(bnSlider.value,10)/100;
+    var qE = q<0.5 ? q*1.55 : (0.775 + (q-0.5)*0.45);       // 感知均匀化：前半程快、后半程仍有可见变化（消死区）
     var bs = parseInt(bsSlider.value,10);
-    var Rmax = Math.max(2.5, bs*dpr);                       // 基础半径（设备px）
-    var nB = q < 0.01 ? 0 : Math.min(MAX_BUBBLES, Math.round(Math.pow(10, q*2.7)));
-    var LENS = 3.2;                                         // 折射强度：边缘位移 = LENS×半径（超量程采样近邻内容→边缘呈强弧形折断，玻璃珠感）
+    var Rmax = Math.max(2.5, bs*dpr*scale);                 // 基础半径（设备px，按draft比例缩放）
+    var nB = q < 0.01 ? 0 : Math.min(MAX_BUBBLES, Math.round(Math.pow(10, qE*2.7)));
+    var LENS = 3.2;                                         // 折射强度：s/|f|，边缘位移=LENS×半径（同侧缩小虚像）
     // 光学厚度：真实气泡层有深度方向堆叠。用面积覆盖率反推等效层数 L，
     // 使白化由"几何覆盖率×层数"共同决定（单层永远盖不满画面，白不了）。
     var areaCov = 0;
@@ -620,15 +621,27 @@
       var ar = bubblePool[ai].r*Rmax;
       areaCov += Math.PI*ar*ar;
     }
-    var cov = Math.min(1, areaCov/(W*H));
-    var L = 1 + Math.round(q*9);                            // 层数 1..10（数量滑块同时推深光路）
+    var cov = Math.min(1, areaCov/(rw*rh));
+    var L = 1 + Math.round(qE*9);                           // 层数 1..10（数量滑块同时推深光路）
 
-    // Pass1：每气泡把偏转累加进位移场（球透镜压缩映射）
-    // 反向追迹：泡内像素采样"更靠泡心"的内容 → 内容被拉向泡心压缩（玻璃珠像）
-    // disp = -LENS·|d|·d̂ → 边缘位移最大(LENS·r)、泡心为零 → 网格线在泡内被弯成弧线并压缩
+    // 高覆盖率快速路径：几乎整幅都是白幕，跳过逐像素追迹（移动端 bn 拉满 1–2s → <50ms）
+    if(cov > 0.55 && L >= 8){
+      rtCanvas.width = rw; rtCanvas.height = rh;
+      var rq = rtCanvas.getContext("2d");
+      rq.fillStyle = "#ffffff";
+      rq.fillRect(0,0,rw,rh);
+      bctx.imageSmoothingEnabled = true;
+      bctx.clearRect(0,0,W,H);
+      bctx.drawImage(rtCanvas, 0, 0, W, H);
+      return;
+    }
+
+    // Pass1：每气泡把偏转累加进位移场（球透镜发散像：正立缩小虚像，采样点在同侧泡外）
+    // 精确 Snell 追迹验证：水中气泡 f=−1.5R，反向映射 X(h)=+(1+s/1.5R)·h —— 同侧、向外
+    // disp = +LENS·|d|·d̂ → 泡内显示泡外近邻内容（缩小），边缘处内容不连续跳变（折射断面）
     for(var i=0;i<nB;i++){
       var b = bubblePool[i];
-      var bx = b.x*W, by = b.y*H, br = b.r*Rmax;
+      var bx = b.x*rw, by = b.y*rh, br = b.r*Rmax;      // 气泡中心按渲染缓冲尺寸缩放（draft 不再错位）
       var x0 = Math.max(0, Math.floor(bx-br)), x1 = Math.min(rw-1, Math.ceil(bx+br));
       var y0 = Math.max(0, Math.floor(by-br)), y1 = Math.min(rh-1, Math.ceil(by+br));
       for(var py=y0; py<=y1; py++){
@@ -640,8 +653,8 @@
           var d = Math.sqrt(d2);
           var k1 = LENS*d/br;                     // 0(泡心)→LENS(边缘)
           var idx = row+px;
-          dispX[idx] -= dx0*k1;
-          dispY[idx] -= dy0*k1;
+          dispX[idx] += dx0*k1;
+          dispY[idx] += dy0*k1;
           hitN[idx]++;
         }
       }
@@ -653,12 +666,12 @@
     }
     var sd = srcData.data, sw = srcData.width, sh = srcData.height;
 
-    // Pass2：逐像素按位移场双线性插值采样 + 白幕混合
+    // Pass2：逐像素按位移场双线性插值采样 + 白幕混合（坐标统一用 rw/rh 基准，draft/full 共用同一路径）
     rtCanvas.width = rw; rtCanvas.height = rh;
     var rctx2 = rtCanvas.getContext("2d");
     var out = rctx2.createImageData(rw, rh);
     var od = out.data;
-    var sxr = sw/W, syr = sh/H;
+    var sxr = sw/rw, syr = sh/rh;
     for(var py2=0; py2<rh; py2++){
       var row2 = py2*rw;
       for(var px2=0; px2<rw; px2++){
@@ -673,18 +686,12 @@
         var fx = sxf-xa, fy = syf-ya;
         var i00=(ya*sw+xa)*4, i10=(ya*sw+xb)*4, i01=(yb*sw+xa)*4, i11=(yb*sw+xb)*4;
         var h = hitN[idx];
-        // 等效相遇次数：单层几何相遇数 × 光学厚度层数
-        var m = h*L;
-        var wD, wW;
-        if(h === 0){
-          // 不在任何气泡投影内：这像素的光在本层没遇到气泡。
-          // 但光路有 L 层深，其他层可能覆盖——用全局覆盖率外推逃逸概率。
-          var escape = Math.pow(1-cov, L);
-          wD = escape; wW = 1-escape;
-        }else{
-          wD = m>=64 ? 0 : powT[m];
-          wW = 1-wD;
-        }
+        // 等效相遇次数 m = h×L（光学厚度）；泡内外统一为 Beer–Lambert 式：
+        // wD = [(1−cov)·(1−p)^(2h)]^L —— h=0 时退化为泡外公式，且保证高密度下泡内≥泡外白
+        var m = h*2;
+        var inner = (1-cov) * (m>=64 ? 0 : powT[m]);
+        var wD = Math.pow(inner, L);
+        var wW = 1-wD;
         var o = idx*4;
         od[o]   = (sd[i00]*(1-fx)*(1-fy) + sd[i10]*fx*(1-fy) + sd[i01]*(1-fx)*fy + sd[i11]*fx*fy)*wD + 255*wW;
         od[o+1] = (sd[i00+1]*(1-fx)*(1-fy) + sd[i10+1]*fx*(1-fy) + sd[i01+1]*(1-fx)*fy + sd[i11+1]*fx*fy)*wD + 255*wW;
@@ -700,11 +707,13 @@
 
   var tracePending = false;
   function scheduleTrace(draft){
-    if(tracePending) return; tracePending = true;
+    if(tracePending){ if(!draft) needsSharp = true; return; }
+    tracePending = true;
     requestAnimationFrame(function(){
       tracePending = false;
       traceBubbles(draft);
       updateImagingReadouts();
+      if(needsSharp){ needsSharp = false; scheduleTrace(false); }   // 补一次精绘
     });
   }
 
@@ -734,8 +743,10 @@
   }
 
   var fullTimer = null;
+  var needsSharp = false;
   function sliderInput(){
     scheduleTrace(true);                    // 拖动中：半分辨率草绘，跟手
+    needsSharp = true;                      // 标记需要精绘（即使被 rAF 合并也不丢失）
     clearTimeout(fullTimer);
     fullTimer = setTimeout(function(){ scheduleTrace(false); }, 200);  // 松手 200ms 后：全分辨率精绘
   }
@@ -775,7 +786,7 @@
 
   nSlider.addEventListener("input", schedule);
   pSlider.addEventListener("input", schedule);
-  document.querySelectorAll(".chip").forEach(function(ch){
+  document.querySelectorAll(".chip[data-logn]").forEach(function(ch){
     ch.addEventListener("click", function(){
       nSlider.value = Math.round(parseFloat(ch.dataset.logn)*100);
       restart(true);
