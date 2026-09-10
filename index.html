@@ -206,8 +206,8 @@
       <input type="range" id="bnSlider" min="0" max="100" step="1" value="0" aria-label="气泡数量">
     </div>
     <div class="slider-row" id="bsRow">
-      <label><span>气泡大小（每次散射把光推多远）</span><span class="val" id="bsVal"></span></label>
-      <input type="range" id="bsSlider" min="1" max="30" step="1" value="6" aria-label="气泡大小">
+      <label><span>气泡大小（大气泡 ≈ 一个个小透镜，扭曲更明显）</span><span class="val" id="bsVal"></span></label>
+      <input type="range" id="bsSlider" min="1" max="30" step="1" value="14" aria-label="气泡大小">
     </div>
 
     <div class="mode-row">
@@ -218,9 +218,8 @@
     <div class="explain" id="imgExplain">
       <b>怎么读这三幅图：</b><span class="hl">看得清 ≠ 透镜的功劳，看得清 = 空间关系没被破坏</span>。
       中图的透镜把光线弯得很厉害，但每一条光都从物体上"原来的点"精准来到你眼里——像清晰、而且亮（它还顺便把更多光聚到了你眼里）。
-      右图的气泡层不弯折光线的"套路"，它直接把光随机弹散：物体的每个点发出的光被泼到了一大片位置上。
-      <b>把气泡数量拉满试试</b>：右边变成一片亮白——每个点都还在发光，只是它们的"位置信息"全被洗掉了。这就是"白"和"透镜"的本质区别：
-      <b>透镜改变光线的方向，但保住空间关系；散射打乱空间关系，把所有位置的光混成一团——混出来的就是白。</b>
+      右图的气泡层正好相反：<b>每个气泡都是一个小透镜</b>，把画面的一小块放大、错位——把"气泡大小"拉大，你能看到画面碎成一块块扭曲的斑；这是"方向被改变"。
+      而"数量"滑到右边，这些错位的光互相叠加、再叠加——任何位置都变得什么颜色都有——<b>空间关系被彻底洗掉，混成一团白</b>。
       拉小气泡、减少数量，信息会一点点回来——这也是磨砂玻璃"透光但看不清"的原因：直线光还没死绝，只是所剩无几。
     </div>
   </div>
@@ -262,7 +261,7 @@
   <p>③ 光线图为蒙特卡洛演示：每条光线的散射次数按泊松过程采样（λ = −ln T），散射点沿路径指数间隔，转向角在 ±150° 内均匀分布。它是机制的直观演示，不是辐射传输的精确解。</p>
   <p>④ 真实世界锚点（窗玻璃/气泡水/雪/云的 N）为数量级估算：气泡水每厘米路径约 30–300 个界面（气泡越小越多）、雪每厘米约 100–1000 个冰晶界面、云层路径因随机游走被大幅拉长。它们的作用是给你"在滑块上的位置感"。</p>
   <p>⑤ 忽略了：偏振、波长的散射依赖（瑞利散射的蓝天是另一期）、水对可见光的微量吸收（见"蓝"卡片）。</p>
-  <p>⑥ "打乱空间关系"实验的简化口径：气泡层后的画面 = 直线分量（权重 T）+ 前向散射模糊（高斯模糊，权重 0.45×(1−T)，模糊半径∝气泡大小）+ 漫射白幕（权重 0.55×(1−T)）。它复现"位置信息逐步丢失→白"的趋势，不是辐射传输求解；真实散射的模糊核并非高斯、且随深度演化。透镜对照中，凸透镜以几何缩放表示——重点是"逐点对应"不因弯折而破坏。</p>
+  <p>⑥ "打乱空间关系"实验的简化口径：气泡层后的画面 = 直线分量（权重 T=(1−0.06)^N）+ 气泡透镜网格重映射（每个气泡≈一个局部小透镜：位移幅度∝气泡大小×散射占比，附 ±25% 局部缩放）+ 漫射白幕（权重 0.9×(1−T)，代表各深度、各方向散射光的混合）。它复现"扭曲→洗乱→白"的趋势，不是辐射传输求解；真实气泡的折射是连续曲面的光滑变形，此处用网格离散近似。透镜对照中，凸透镜以几何缩放表示——重点是"逐点对应"不因弯折而破坏。</p>
   <p class="next-ep">下一期预告：天空为什么是蓝的，晚霞为什么是红的？——同一个"散射"直觉，加上"波长"这根新旋钮。</p>
 </footer>
 
@@ -572,33 +571,51 @@
     }
   }
 
-  var blurCanvas = document.createElement("canvas");
+  var warpCanvas = document.createElement("canvas");
 
   function drawBubbles(){
     var W = bubCv.width, H = bubCv.height;
+    bctx.clearRect(0,0,W,H);
     var q = parseInt(bnSlider.value,10)/100;          // 0..1
-    var bs = parseInt(bsSlider.value,10);             // CSS 像素
+    var bs = parseInt(bsSlider.value,10);             // 气泡直径（CSS 像素）
     var dpr = W / (bubCv.clientWidth||W) || 1;
-    var sigma = Math.max(1, bs*dpr);
     var N = Math.pow(10, q*3.3);                      // 与主实验同源：N = 10^(0..3.3)
     var T = Math.pow(1-0.06, N);
     var Wd = Math.max(0, 1-T);
-    bctx.globalAlpha = 1;
-    bctx.drawImage(srcCv, 0, 0);                      // 直线分量：空间关系完整
-    if(Wd > 0.0005){
-      blurCanvas.width = W; blurCanvas.height = H;
-      var b2 = blurCanvas.getContext("2d");
-      b2.clearRect(0,0,W,H);
-      b2.filter = "blur("+sigma.toFixed(1)+"px)";
-      b2.drawImage(srcCv, 0, 0);
-      b2.filter = "none";
-      bctx.globalAlpha = Wd*0.45;                     // 前向散射：模糊（每点泼开成一团）
-      bctx.drawImage(blurCanvas, 0, 0);
-      bctx.globalAlpha = Wd*0.55;                     // 漫射幕：位置信息彻底丢失的部分
+    // 第1层：直线光分量（权重=T，随气泡增多衰减——这是"变白"的主控）
+    if(T > 0.001){
+      bctx.globalAlpha = T;
+      bctx.drawImage(srcCv, 0, 0);
+    }
+    if(Wd > 0.001){
+      // 第2层：气泡透镜网格重映射——每个气泡=一个小透镜（局部错位+缩放）
+      // 大气泡 → 大网格 → 扭曲块面大且明显；小气泡 → 细碎闪炼（磨砂感）
+      var tileCss = Math.max(bs*1.6, 8);
+      var tw = Math.max(6, Math.round(tileCss*dpr));
+      warpCanvas.width = W; warpCanvas.height = H;
+      var w2 = warpCanvas.getContext("2d");
+      var r1, r2, r3, h1, h2, h3;
+      for(var ty=0, iy=0; ty<H; ty+=tw, iy++){
+        for(var tx=0, ix=0; tx<W; tx+=tw, ix++){
+          h1 = Math.sin(ix*127.1+iy*311.7)*43758.5453; r1 = h1-Math.floor(h1);
+          h2 = Math.sin(ix*269.5+iy*183.3)*28001.8384; r2 = h2-Math.floor(h2);
+          h3 = Math.sin(ix*419.2+iy*371.9)*12345.6789; r3 = h3-Math.floor(h3);
+          var amp = tw*0.45*Wd;                        // 扭曲幅度∝气泡大小×散射占比
+          var dx = (r1*2-1)*amp, dy = (r2*2-1)*amp;
+          var sc = 1 + (r3-0.5)*0.5*Wd;                // ±25%局部缩放（透镜感）
+          var sw = Math.min(tw, W-tx), sh = Math.min(tw, H-ty);
+          if(sw<=0||sh<=0) continue;
+          w2.drawImage(srcCv, tx, ty, sw, sh, tx+dx, ty+dy, sw*sc, sh*sc);
+        }
+      }
+      bctx.globalAlpha = Wd;
+      bctx.drawImage(warpCanvas, 0, 0);
+      // 第3层：漫射白幕——来自各深度、各方向散射光的叠加（把"各处各色光混合成白"可视化）
+      bctx.globalAlpha = Wd*0.9;
       bctx.fillStyle = "#ffffff";
       bctx.fillRect(0,0,W,H);
-      bctx.globalAlpha = 1;
     }
+    bctx.globalAlpha = 1;
   }
 
   function refitImaging(){
