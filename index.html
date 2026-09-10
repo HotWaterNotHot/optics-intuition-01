@@ -79,6 +79,20 @@
   .chip:hover{border-color:var(--accent); transform:translateY(-1px);}
   .chip small{color:var(--muted); margin-left:6px;}
 
+  /* 成像实验 */
+  .viz3{display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:18px;}
+  @media(max-width:759px){ .viz3{grid-template-columns:1fr;} }
+  .viz3 canvas{width:100%; display:block; border-radius:12px; background:#dfe7f0; border:1px solid var(--line); aspect-ratio:4/3;}
+  .mode-row{display:flex; gap:10px; flex-wrap:wrap; margin-top:6px;}
+  .mode-chip.active{border-color:var(--accent); background:rgba(124,196,255,.12); box-shadow:0 0 0 1px var(--accent) inset;}
+  .slider-row.off{opacity:.35; pointer-events:none;}
+  .explain{
+    margin-top:16px; background:var(--panel2); border:1px solid var(--line);
+    border-radius:12px; padding:16px 18px; font-size:15.5px; color:var(--muted);
+  }
+  .explain b{color:var(--text);}
+  .explain .hl{color:var(--accent); font-weight:700;}
+
   /* 三连击 & 四态卡 */
   .cards{display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px; margin-top:18px;}
   .card{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:20px;}
@@ -108,9 +122,9 @@
 <section id="hook">
   <h2>三句话直觉</h2>
   <div class="hooks">
-    <div class="hook-card"><b>透明</b> = 光沿直线穿过去，<em>方向不变</em>。</div>
-    <div class="hook-card"><b>白</b> = 光被反弹了无数次，<em>方向完全随机</em>——但每一次反弹都不损耗：能量和颜色都不变，变的只有方向。</div>
-    <div class="hook-card">水<b>几乎不吸收</b>可见光。所以泡沫不会变成黑色，只会把光"洗乱"后还回来：<em>白色</em>。</div>
+    <div class="hook-card"><b>透明</b> = 光沿直线穿过去，<em>不打乱空间关系</em>——物体每个点发的光，原样来到你眼里的对应位置。</div>
+    <div class="hook-card"><b>白</b> = 光被弹散无数次，<em>空间关系被打乱</em>——每个点发的光被泼到一大片位置，各处、各种颜色的光混合后呈现为白。</div>
+    <div class="hook-card">每一次反弹都<em>不损耗能量</em>（水几乎不吸收可见光）——所以是白，不是黑。</div>
   </div>
 </section>
 
@@ -167,6 +181,51 @@
   </div>
 </section>
 
+<section id="imaging">
+  <h2>打乱"空间关系"，会看到什么？</h2>
+  <p class="lead">隔着这层气泡，看远处这幅简单图案。左边是<b>真实物体</b>；中间是<b>透镜（或纯观察）</b>——光线被弯折，但每一条都精准抵达它该去的位置，空间关系完好；右边是<b>气泡层</b>——光被弹得到处都是，空间关系被洗乱。</p>
+
+  <div class="lab">
+    <div class="viz3">
+      <div>
+        <canvas id="srcCanvas"></canvas>
+        <p class="canvas-note">物体（左）</p>
+      </div>
+      <div>
+        <canvas id="lensCanvas"></canvas>
+        <p class="canvas-note">透过透镜看（中）——空间关系保持，像清晰</p>
+      </div>
+      <div>
+        <canvas id="bubCanvas"></canvas>
+        <p class="canvas-note">透过气泡层看（右）——空间关系被洗乱</p>
+      </div>
+    </div>
+
+    <div class="slider-row" style="margin-top:18px;">
+      <label><span>气泡数量（光路上的散射强度）</span><span class="val" id="bnVal"></span></label>
+      <input type="range" id="bnSlider" min="0" max="100" step="1" value="0" aria-label="气泡数量">
+    </div>
+    <div class="slider-row" id="bsRow">
+      <label><span>气泡大小（每次散射把光推多远）</span><span class="val" id="bsVal"></span></label>
+      <input type="range" id="bsSlider" min="1" max="30" step="1" value="6" aria-label="气泡大小">
+    </div>
+
+    <div class="mode-row">
+      <button class="chip mode-chip active" id="modeLens">对照模式：中图放凸透镜</button>
+      <button class="chip mode-chip" id="modePlain">对照模式：中图直接看（无透镜）</button>
+    </div>
+
+    <div class="explain" id="imgExplain">
+      <b>怎么读这三幅图：</b><span class="hl">看得清 ≠ 透镜的功劳，看得清 = 空间关系没被破坏</span>。
+      中图的透镜把光线弯得很厉害，但每一条光都从物体上"原来的点"精准来到你眼里——像清晰、而且亮（它还顺便把更多光聚到了你眼里）。
+      右图的气泡层不弯折光线的"套路"，它直接把光随机弹散：物体的每个点发出的光被泼到了一大片位置上。
+      <b>把气泡数量拉满试试</b>：右边变成一片亮白——每个点都还在发光，只是它们的"位置信息"全被洗掉了。这就是"白"和"透镜"的本质区别：
+      <b>透镜改变光线的方向，但保住空间关系；散射打乱空间关系，把所有位置的光混成一团——混出来的就是白。</b>
+      拉小气泡、减少数量，信息会一点点回来——这也是磨砂玻璃"透光但看不清"的原因：直线光还没死绝，只是所剩无几。
+    </div>
+  </div>
+</section>
+
 <section id="triple">
   <h2>同一个机制，三种日常</h2>
   <div class="cards">
@@ -203,6 +262,7 @@
   <p>③ 光线图为蒙特卡洛演示：每条光线的散射次数按泊松过程采样（λ = −ln T），散射点沿路径指数间隔，转向角在 ±150° 内均匀分布。它是机制的直观演示，不是辐射传输的精确解。</p>
   <p>④ 真实世界锚点（窗玻璃/气泡水/雪/云的 N）为数量级估算：气泡水每厘米路径约 30–300 个界面（气泡越小越多）、雪每厘米约 100–1000 个冰晶界面、云层路径因随机游走被大幅拉长。它们的作用是给你"在滑块上的位置感"。</p>
   <p>⑤ 忽略了：偏振、波长的散射依赖（瑞利散射的蓝天是另一期）、水对可见光的微量吸收（见"蓝"卡片）。</p>
+  <p>⑥ "打乱空间关系"实验的简化口径：气泡层后的画面 = 直线分量（权重 T）+ 前向散射模糊（高斯模糊，权重 0.45×(1−T)，模糊半径∝气泡大小）+ 漫射白幕（权重 0.55×(1−T)）。它复现"位置信息逐步丢失→白"的趋势，不是辐射传输求解；真实散射的模糊核并非高斯、且随深度演化。透镜对照中，凸透镜以几何缩放表示——重点是"逐点对应"不因弯折而破坏。</p>
   <p class="next-ep">下一期预告：天空为什么是蓝的，晚霞为什么是红的？——同一个"散射"直觉，加上"波长"这根新旋钮。</p>
 </footer>
 
@@ -441,6 +501,151 @@
     rayCv.setAttribute("aria-label","光线散射模拟："+elW.textContent+"的光被随机散射，观感为"+elF.textContent);
   }
 
+  /* ---------- 成像实验：物体 / 透镜 / 气泡层 三联图 ---------- */
+  var srcCv = document.getElementById("srcCanvas"),
+      lensCv = document.getElementById("lensCanvas"),
+      bubCv = document.getElementById("bubCanvas");
+  var sctx = srcCv.getContext("2d"),
+      lctx = lensCv.getContext("2d"),
+      bctx = bubCv.getContext("2d");
+  var bnSlider = document.getElementById("bnSlider"),
+      bsSlider = document.getElementById("bsSlider"),
+      bsRow = document.getElementById("bsRow"),
+      bnVal = document.getElementById("bnVal"),
+      bsVal = document.getElementById("bsVal"),
+      lensChip = document.getElementById("modeLens"),
+      plainChip = document.getElementById("modePlain");
+  var lensOn = true;
+
+  // 简单场景：几何色块 + 参照字母（空间关系的"探针"）
+  var SCENE = [
+    {type:"circle", x:.22, y:.38, r:.10, color:"#e74c3c"},
+    {type:"rect",   x:.50, y:.22, w:.15, h:.15, color:"#27ae60"},
+    {type:"tri",    x:.74, y:.42, s:.20, color:"#2980b9"},
+    {type:"rect",   x:.22, y:.72, w:.46, h:.07, color:"#f1c40f"},
+    {type:"circle", x:.82, y:.74, r:.055, color:"#8e44ad"}
+  ];
+
+  function drawScene(ctx, W, H){
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle = "#dfe7f0";
+    ctx.fillRect(0,0,W,H);
+    var u = Math.min(W,H);
+    SCENE.forEach(function(o){
+      ctx.fillStyle = o.color;
+      ctx.beginPath();
+      if(o.type==="circle"){
+        ctx.arc(o.x*W, o.y*H, o.r*u, 0, 7);
+      }else if(o.type==="rect"){
+        ctx.rect((o.x-o.w/2)*W, (o.y-o.h/2)*H, o.w*W, o.h*H);
+      }else if(o.type==="tri"){
+        var s=o.s*u, cx=o.x*W, cy=o.y*H;
+        ctx.moveTo(cx, cy-s*0.62);
+        ctx.lineTo(cx+s*0.58, cy+s*0.42);
+        ctx.lineTo(cx-s*0.58, cy+s*0.42);
+        ctx.closePath();
+      }
+      ctx.fill();
+    });
+    ctx.fillStyle = "rgba(40,50,66,.85)";
+    ctx.font = Math.round(u*0.10)+"px sans-serif";
+    ctx.fillText("A", 0.045*W, 0.14*H);
+  }
+
+  function drawLens(){
+    var W = lensCv.width, H = lensCv.height;
+    if(lensOn){
+      lctx.save();
+      var k = 1.35, cx = W/2, cy = H/2;
+      lctx.translate(cx, cy); lctx.scale(k,k); lctx.translate(-cx,-cy);
+      lctx.drawImage(srcCv, 0, 0);
+      lctx.restore();
+      // 透镜示意
+      var rw = Math.min(W,H)*0.26;
+      lctx.fillStyle = "rgba(60,80,105,.07)";
+      lctx.strokeStyle = "rgba(60,80,105,.9)";
+      lctx.lineWidth = 2.5;
+      lctx.fillRect(W/2-rw/2, H/2-rw*0.8, rw, rw*1.6);
+      lctx.strokeRect(W/2-rw/2, H/2-rw*0.8, rw, rw*1.6);
+    }else{
+      lctx.drawImage(srcCv, 0, 0);
+    }
+  }
+
+  var blurCanvas = document.createElement("canvas");
+
+  function drawBubbles(){
+    var W = bubCv.width, H = bubCv.height;
+    var q = parseInt(bnSlider.value,10)/100;          // 0..1
+    var bs = parseInt(bsSlider.value,10);             // CSS 像素
+    var dpr = W / (bubCv.clientWidth||W) || 1;
+    var sigma = Math.max(1, bs*dpr);
+    var N = Math.pow(10, q*3.3);                      // 与主实验同源：N = 10^(0..3.3)
+    var T = Math.pow(1-0.06, N);
+    var Wd = Math.max(0, 1-T);
+    bctx.globalAlpha = 1;
+    bctx.drawImage(srcCv, 0, 0);                      // 直线分量：空间关系完整
+    if(Wd > 0.0005){
+      blurCanvas.width = W; blurCanvas.height = H;
+      var b2 = blurCanvas.getContext("2d");
+      b2.clearRect(0,0,W,H);
+      b2.filter = "blur("+sigma.toFixed(1)+"px)";
+      b2.drawImage(srcCv, 0, 0);
+      b2.filter = "none";
+      bctx.globalAlpha = Wd*0.45;                     // 前向散射：模糊（每点泼开成一团）
+      bctx.drawImage(blurCanvas, 0, 0);
+      bctx.globalAlpha = Wd*0.55;                     // 漫射幕：位置信息彻底丢失的部分
+      bctx.fillStyle = "#ffffff";
+      bctx.fillRect(0,0,W,H);
+      bctx.globalAlpha = 1;
+    }
+  }
+
+  function refitImaging(){
+    [srcCv, lensCv, bubCv].forEach(function(cv){
+      var cssW = cv.parentElement.clientWidth || 300;
+      var dpr = Math.min(2, window.devicePixelRatio||1);
+      var cssH = Math.round(cssW*0.75);
+      cv.style.height = cssH+"px";
+      var bw = Math.round(cssW*dpr), bh = Math.round(cssH*dpr);
+      if(cv.width !== bw){ cv.width = bw; cv.height = bh; }
+    });
+    drawScene(sctx, srcCv.width, srcCv.height);
+    drawLens();
+    drawBubbles();
+    updateImagingReadouts();
+  }
+
+  function updateImagingReadouts(){
+    var q = parseInt(bnSlider.value,10)/100;
+    var logn = q*3.3;
+    bnVal.textContent = logn < 0.05 ? "1（无气泡）" : "10"+sup(logn.toFixed(1));
+    bsVal.textContent = bsSlider.value+" px";
+    bsRow.classList.toggle("off", parseInt(bnSlider.value,10)===0);
+    bubCv.setAttribute("role","img");
+    bubCv.setAttribute("aria-label","透过气泡层观察：气泡数量"+bnVal.textContent+"，图像"+(q<0.25?"轻微模糊":(q<0.6?"严重模糊、开始发白":"几乎全白，轮廓不可见")));
+  }
+
+  var imgPending = false;
+  function scheduleImaging(){
+    if(imgPending) return; imgPending = true;
+    requestAnimationFrame(function(){
+      imgPending = false;
+      drawBubbles();
+      updateImagingReadouts();
+    });
+  }
+  bnSlider.addEventListener("input", scheduleImaging);
+  bsSlider.addEventListener("input", scheduleImaging);
+  lensChip.addEventListener("click", function(){
+    lensOn = true; lensChip.classList.add("active"); plainChip.classList.remove("active");
+    drawLens();
+  });
+  plainChip.addEventListener("click", function(){
+    lensOn = false; plainChip.classList.add("active"); lensChip.classList.remove("active");
+    drawLens();
+  });
+
   /* ---------- 动画与事件 ---------- */
   var rafId = null;
   function restart(animate){
@@ -488,6 +693,7 @@
       cvEl.width = Math.round(cssW*dpr);
       cvEl.height = Math.round(cssH*dpr);
     });
+    refitImaging();
     // 曲线画布在高分屏下按同样坐标系绘制即可（已按 width 缩放）
   }
 
